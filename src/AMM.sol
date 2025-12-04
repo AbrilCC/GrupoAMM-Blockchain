@@ -111,7 +111,7 @@ contract AMM is ERC20{
         // A partir de aquí, las reglas de addLiquiditycode / removeLiquiditycode
         // preservan las proporciones para todos los LPs.
         // ------------------------------------------------------------
-        else {
+        else { 
             uint256 tokenAmount = maxTokens;
 
             liquidityMinted = msg.value; // l0 = e0
@@ -198,18 +198,18 @@ contract AMM is ERC20{
     function ethToTokenSwap(uint256 minTokensOut)
         external
         payable
-        returns (uint256 tokensBought)
+        returns (uint256 dy)
     {
         require(msg.value > 0, "ETH = 0");
 
-        tokensBought = _getInputPrice(msg.value, reserveEth, reserveToken);
-        require(tokensBought >= minTokensOut, "slippage");
+        dy = _getInputPrice(msg.value, reserveEth, reserveToken);
+        require(dy >= minTokensOut, "slippage");
 
         // Nuevo estado: e' = e + Δe, t' = t - Δt.
-        reserveEth -= msg.value;
-        reserveToken += reserveToken - tokensBought;
+        reserveEth += msg.value;
+        reserveToken -= dy; 
 
-        token.transfer(msg.sender, tokensBought);
+        exchangeToken.transfer(msg.sender, dy);
     }
 
     /// @notice Intercambia tokens por ETH (entrada exacta de tokens).
@@ -230,7 +230,7 @@ contract AMM is ERC20{
         reserveToken += tokensSold;
         reserveEth -= ethBought;
 
-        token.transferFrom(msg.sender, address(this), tokensSold);
+        exchangeToken.transferFrom(msg.sender, address(this), tokensSold); 
         payable(msg.sender).transfer(ethBought);
     }
 
@@ -248,16 +248,13 @@ contract AMM is ERC20{
     //   outputReserve = y
     // ------------------------------------------------------------------------
     function _getInputPrice(
-        uint256 inputAmount,
-        uint256 inputReserve,
-        uint256 outputReserve
-    ) internal pure returns (uint256) {
-        require(inputAmount > 0, "inputAmount = 0");
-        require(inputReserve > 0 && outputReserve > 0, "no hay liquidez");
-
-        uint256 numerator = inputAmount * outputReserve;
-        uint256 denominator = inputReserve + inputAmount;
-        return numerator / denominator;
+        uint256 dx,
+        uint256 x,
+        uint256 y
+    ) internal pure returns (uint256 dy) {
+        require(dx > 0, "inputAmount = 0");
+        require(x > 0 && y > 0, "no hay liquidez");
+        dy = (dx*y)/(x+dx);
     }
 
     receive() external payable {
