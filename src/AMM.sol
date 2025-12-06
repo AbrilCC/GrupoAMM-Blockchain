@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.20;
 
-import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import "@openzeppelin/contracts/token/ERC20/IERC20.sol"; //Interfaz que firma que los tokens cumplen estandares para ser intercambiados
 import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 
 /// @title Simple Uniswap V1-style constant-product AMM
