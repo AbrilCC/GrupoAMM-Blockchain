@@ -14,8 +14,6 @@ contract AMM is ERC20{
 
     uint256 public reserveEth;
     uint256 public reserveToken;
-    uint256 public fee = 0.003;
-
 
     constructor(address _tokenAddress) ERC20("AMM LPToken", "AMMLP") {
         exchangeToken = IERC20(_tokenAddress);
