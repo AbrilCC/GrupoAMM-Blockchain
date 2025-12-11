@@ -13,6 +13,29 @@ Foundry consists of:
 
 https://book.getfoundry.sh/
 
+## Installation
+
+### Install Dependencies
+
+1. **Clone the repository with submodules:**
+   ```shell
+   git clone --recursive <repository-url>
+   ```
+   Or if already cloned:
+   ```shell
+   git submodule update --init --recursive
+   ```
+
+2. **Install npm dependencies (OpenZeppelin contracts):**
+   ```shell
+   npm install
+   ```
+
+3. **Install Foundry dependencies (if using forge install):**
+   ```shell
+   forge install OpenZeppelin/openzeppelin-contracts
+   ```
+
 ## Usage
 
 ### Build

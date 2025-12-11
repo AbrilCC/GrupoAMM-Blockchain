@@ -75,7 +75,7 @@ contract AMM is ERC20 {
         //   requiredTokens = Δe · t / e + 1
         //   liquidityMinted = Δe · l / e
         // ------------------------------------------------------------
-        if (totalSupply > 0) {
+        if (totalSupply() > 0) {
             uint256 e = reserveEth;
             uint256 t = reserveToken;
 
@@ -84,7 +84,7 @@ contract AMM is ERC20 {
             require(tokenAmount <= maxTokens, "tokens insuficientes");
 
             // Liquidez minteada proporcional a Δe/e (versión entera).
-            liquidityMinted = (msg.value * totalSupply) / e; // no nos importa el redondeo para abajo en la liquidez
+            liquidityMinted = (msg.value * totalSupply()) / e; // no nos importa el redondeo para abajo en la liquidez
             require(liquidityMinted > 0, "LP minteado = 0");
 
             // Actualizamos el estado (e', t', l').
@@ -126,7 +126,7 @@ contract AMM is ERC20 {
             );
         }
 
-        return liquidityMinted;
+        return (liquidityMinted, tokenAmount);
     }
 
       // ------------------------------------------------------------------------
@@ -159,7 +159,7 @@ contract AMM is ERC20 {
     {
         require(liquidity > 0, "LP = 0");
 
-        uint256 _totalSupply = totalSupply;
+        uint256 _totalSupply = totalSupply();
         require(_totalSupply > 0, "no hay liquidez");
 
         uint256 e = reserveEth;
