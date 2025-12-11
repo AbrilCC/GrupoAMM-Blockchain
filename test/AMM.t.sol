@@ -141,6 +141,79 @@ contract AMMTest is Test {
     }
 
     // =========================================================================
+    // TEST: Roundtrip - El precio vuelve al inicial
+    // =========================================================================
+
+    function test_RoundtripPriceReturns() public {
+        console.log("\n=== ROUNDTRIP: ETH -> USD -> ETH ===\n");
+
+        uint256 ethToSwap = 1 ether;
+
+        // Estado inicial
+        (uint256 ethReserveInitial, uint256 usdReserveInitial) = amm.getReserves();
+        uint256 priceInitial = (usdReserveInitial * 1e18) / ethReserveInitial;
+        uint256 traderEthInitial = trader.balance;
+
+        console.log("=== ESTADO INICIAL ===");
+        console.log("Precio inicial: %s USD/ETH (en base units)", priceInitial);
+        console.log("Precio inicial: %s USD/ETH", priceInitial / 1e18);
+        _logReserves("Inicial");
+
+        // --- SWAP 1: ETH -> USD ---
+        console.log("=== SWAP 1: Vendemos 1 ETH ===");
+        vm.prank(trader);
+        uint256 usdReceived = amm.ethToTokenSwap{value: ethToSwap}(0);
+
+        (uint256 ethReserveAfter1, uint256 usdReserveAfter1) = amm.getReserves();
+        uint256 priceAfter1 = (usdReserveAfter1 * 1e18) / ethReserveAfter1;
+
+        console.log("USD recibidos: %s (en base units)", usdReceived);
+        console.log("USD recibidos: %s", usdReceived / 1e18);
+        console.log("Precio despues del swap 1: %s USD/ETH (en base units)", priceAfter1);
+        console.log("Precio despues del swap 1: %s USD/ETH", priceAfter1 / 1e18);
+        _logReserves("Despues de Swap 1");
+
+        // --- SWAP 2: USD -> ETH (devolvemos los USD que recibimos) ---
+        console.log("=== SWAP 2: Vendemos los USD que recibimos ===");
+        vm.prank(trader);
+        uint256 ethReceived = amm.tokenToEthSwap(usdReceived, 0);
+
+        (uint256 ethReserveFinal, uint256 usdReserveFinal) = amm.getReserves();
+        uint256 priceFinal = (usdReserveFinal * 1e18) / ethReserveFinal;
+
+        console.log("ETH recibidos: %s (en base units)", ethReceived);
+        console.log("ETH recibidos: %s mETH", ethReceived / 1e15);
+        console.log("Precio final: %s USD/ETH (en base units)", priceFinal);
+        console.log("Precio final: %s USD/ETH", priceFinal / 1e18);
+        _logReserves("Final");
+
+        // --- COMPARACION ---
+        console.log("=== COMPARACION ===");
+        console.log("Precio inicial: %s USD/ETH", priceInitial / 1e18);
+        console.log("Precio final:   %s USD/ETH", priceFinal / 1e18);
+
+        uint256 ethLost = ethToSwap - ethReceived;
+        console.log("ETH perdido por slippage: %s (en base units)", ethLost);
+        console.log("ETH perdido por slippage: %s mETH", ethLost / 1e15);
+
+        // El precio vuelve aproximadamente al inicial
+        // (no es exacto debido al slippage en ambas direcciones)
+        assertApproxEqRel(priceFinal, priceInitial, 0.01e18, "Precio deberia volver aprox al inicial");
+        
+        // El trader pierde ETH en el roundtrip (costo del slippage)
+        assertLt(ethReceived, ethToSwap, "Trader deberia perder ETH por slippage");
+        assertLt(trader.balance, traderEthInitial, "Balance final menor que inicial");
+
+        // NOTA SOBRE REDONDEOS:
+        // Los redondeos en un AMM siempre deben ser a favor del pool (en contra del usuario).
+        // - Cuando el usuario RECIBE tokens: floor() -> recibe menos
+        // - Cuando el usuario PAGA tokens: ceil() -> paga mas
+        // Esto previene ataques donde alguien hace muchos swaps pequenos para "robar"
+        // fracciones de wei del pool aprovechando redondeos a su favor.
+        // En este test, el trader pierde ~1 wei por los redondeos, que se queda en el pool.
+    }
+
+    // =========================================================================
     // HELPERS
     // =========================================================================
 
