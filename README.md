@@ -35,8 +35,19 @@ $ forge build
 
 ### Test
 
+Ejecutar todos los tests:
 ```shell
-$ forge test
+forge test
+```
+
+Ejecutar tests específicos con logs verbosos:
+```shell
+# Test de swaps básicos
+forge test --match-test test_SwapEthToToken -vv
+
+# Test de roundtrip
+forge test --match-test test_RoundtripPriceReturns -vv
+
 ```
 
 ### Format
@@ -57,11 +68,42 @@ $ forge snapshot
 $ anvil
 ```
 
-### Deploy
+### Deploy en Anvil
 
+
+1. **Iniciar Anvil** (en una terminal): (esto corre un nodo local en el pueto http://127.0.0.1:8545 y ademas te da cuentas con balance de ETH y Private keys)
 ```shell
-$ forge script script/Counter.s.sol:CounterScript --rpc-url <your_rpc_url> --private-key <your_private_key>
+anvil
 ```
+
+2. **Deploy del AMM y USD token**:
+```shell
+forge script script/Deploy.s.sol --tc DeployScript --rpc-url http://127.0.0.1:8545 --broadcast -vvv
+```
+
+Esto despliega:
+- Token USD (ERC20)
+- Contrato AMM con liquidez inicial (10 ETH + 30,000 USD a precio 3000 USD/ETH)
+- Importante usar `--broadcast` para que se mande la tx al nodo local, si no, solo la simula.
+El script mostrará las direcciones de los contratos en output en la terminal. Guardalas para el siguiente paso.
+
+las guardas asi:
+```shell
+  export USD_ADDRESS=<direccion_usd>
+  export AMM_ADDRESS=<direccion_amm>
+```
+3. **Ejecutar Sandwich Attack**:
+```shell
+forge script script/SandwichAttack.s.sol --tc SandwichAttackScript --rpc-url http://127.0.0.1:8545 --broadcast -vvv
+```
+
+
+El script ejecuta:
+- **Front-run**: Atacante compra ETH con 100,000 USD
+- **TX Víctima**: Víctima compra ETH con 6,000 USD (a peor precio)
+- **Back-run**: Atacante vende el ETH recibido
+
+**Nota**: Enrealidad el sandwich attack pasa todo en un mismo bloque, para no dejar la pool desbalanceada y otra persona aproveche el precio. Anvil por defecto mina una tx por bloque, para que las 3 transacciones estén en el mismo bloque, inicia Anvil con `anvil --no-mining` y mina manualmente después de enviar las 3 TXs. Esto esta hecho en el script `sandwich.sh`. 
 
 ### Cast
 
