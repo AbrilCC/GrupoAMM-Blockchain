@@ -14,7 +14,7 @@ contract AMM is ERC20{
 
     uint256 public reserveEth;
     uint256 public reserveToken;
-
+    uint256 public fee = 0.003;
 
 
     constructor(address _tokenAddress) ERC20("AMM LPToken", "AMMLP") {
@@ -254,7 +254,9 @@ contract AMM is ERC20{
     ) internal pure returns (uint256 dy) {
         require(dx > 0, "inputAmount = 0");
         require(x > 0 && y > 0, "no hay liquidez");
-        dy = (dx*y)/(x+dx);
+        uint256 dxEffective = (dx * 997 / 1000); //Aplicamos una fee del 0.3% = 0.003 = 3/1000
+        //El 0.3% se queda en la pool, haciendo que las reservas crezcan y cada LP token valga mas
+        dy = (dxEffective*y)/(x+dxEffective);
     }
 
     receive() external payable {
