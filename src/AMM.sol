@@ -1,28 +1,25 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.20;
 
-import "@openzeppelin/contracts/token/ERC20/IERC20.sol"; //Interfaz que firma que los tokens cumplen estandares para ser intercambiados
+import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 
 /// @title Simple Uniswap V1-style constant-product AMM
-/// @notice Trades one ERC20 token against ETH using x * y = k with 0.3% fee.
-///         This contract is also the LP token (inherits LPToken).
+/// @notice Trades one ERC20 token against ETH using x * y = k (constant product formula).
+///         This contract is also the LP token (inherits ERC20).
 
-contract AMM is ERC20{
-
+contract AMM is ERC20 {
     IERC20 public exchangeToken;
 
     uint256 public reserveEth;
     uint256 public reserveToken;
-
-
 
     constructor(address _tokenAddress) ERC20("AMM LPToken", "AMMLP") {
         exchangeToken = IERC20(_tokenAddress);
     }
 
     // ------------------------------------------------------------------------
-    // VISTA: devolver reservas actuales (e, t).
+    // FUNCIÓN VIEW: devolver reservas actuales (e, t).
     // ------------------------------------------------------------------------
     function getReserves()
         external
@@ -61,9 +58,9 @@ contract AMM is ERC20{
     function addLiquidity(uint256 maxTokens)
         external
         payable
-        returns (uint256 liquidityMinted, uint256 tokenAmount )
+        returns (uint256 liquidityMinted, uint256 tokenAmount)
     {
-        require(msg.value > 100 ether, "se requiere ETH");
+        require(msg.value > 0, "se requiere ETH");
         require(maxTokens > 0, "se requieren tokens");
 
         // ------------------------------------------------------------
@@ -83,7 +80,7 @@ contract AMM is ERC20{
             uint256 t = reserveToken;
 
             // Tokens que se deben depositar para mantener la misma razón e:t.
-            uint256 tokenAmount = (msg.value * t) / e + 1; // floor(Δe·t / e) + 1
+            tokenAmount = (msg.value * t) / e + 1; // floor(Δe·t / e) + 1
             require(tokenAmount <= maxTokens, "tokens insuficientes");
 
             // Liquidez minteada proporcional a Δe/e (versión entera).
@@ -96,7 +93,7 @@ contract AMM is ERC20{
 
             _mint(msg.sender, liquidityMinted);
 
-            token.transferFrom(msg.sender, address(this), tokenAmount);
+            exchangeToken.transferFrom(msg.sender, address(this), tokenAmount);
         }
         // ------------------------------------------------------------
         // Caso 2: primer proveedor de liquidez (l = 0 en el paper).
@@ -111,8 +108,8 @@ contract AMM is ERC20{
         // A partir de aquí, las reglas de addLiquiditycode / removeLiquiditycode
         // preservan las proporciones para todos los LPs.
         // ------------------------------------------------------------
-        else { 
-            uint256 tokenAmount = maxTokens;
+        else {
+            tokenAmount = maxTokens;
 
             liquidityMinted = msg.value; // l0 = e0
             require(liquidityMinted > 0, "LP inicial = 0");
@@ -120,11 +117,11 @@ contract AMM is ERC20{
             reserveEth = msg.value;
             reserveToken = tokenAmount;
 
-            // Mint the LP tokens al usuario
+            // Minteamos los LP tokens al usuario
             _mint(msg.sender, liquidityMinted);
 
             require(
-                token.transferFrom(msg.sender, address(this), tokenAmount),
+                exchangeToken.transferFrom(msg.sender, address(this), tokenAmount),
                 "transferFrom fallida"
             );
         }
@@ -179,7 +176,10 @@ contract AMM is ERC20{
         reserveToken = t - tokenOut;
 
         payable(msg.sender).transfer(ethOut);
-        require(token.transfer(msg.sender, tokenOut), "transfer fallida");
+        require(
+            exchangeToken.transfer(msg.sender, tokenOut),
+            "transfer fallida"
+        );
     }
 
 
@@ -254,11 +254,11 @@ contract AMM is ERC20{
     ) internal pure returns (uint256 dy) {
         require(dx > 0, "inputAmount = 0");
         require(x > 0 && y > 0, "no hay liquidez");
-        dy = (dx*y)/(x+dx);
+        dy = (dx * y) / (x + dx);
     }
 
     receive() external payable {
-        // Evitamos que entren ETH “huérfanos” sin lógica de swap/liquidez.
+        // Evitamos que entren ETH "huérfanos" sin lógica de swap/liquidez
         revert("Usa swap o addLiquidity");
     }
 }
