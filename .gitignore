@@ -12,7 +12,3 @@ docs/
 
 # Dotenv file
 .env
-
-# Dependencies (except submodules)
-lib/*
-!lib/forge-std
