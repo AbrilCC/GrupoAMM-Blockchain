@@ -14,6 +14,10 @@ contract AMM is ERC20 {
     uint256 public reserveEth;
     uint256 public reserveToken;
 
+    // Fee del 0.3% (30 bps) sobre el monto de entrada
+    uint256 public constant FEE_BPS = 3;
+    uint256 public constant BPS_DENOM = 1000;
+
     constructor(address _tokenAddress) ERC20("AMM LPToken", "AMMLP") {
         exchangeToken = IERC20(_tokenAddress);
     }
@@ -161,17 +165,27 @@ contract AMM is ERC20 {
         reserveEth = e - ethOut;
         reserveToken = t - tokenOut;
 
-        payable(msg.sender).transfer(ethOut);
+        (bool success, ) = payable(msg.sender).call{value: ethOut}("");
+        require(success, "ETH transfer fallida");
         require(exchangeToken.transfer(msg.sender, tokenOut), "transfer fallida");
     }
 
     // ------------------------------------------------------------------------
-    // Swaps sin comisión (modelo x·y = k exacto).
+    // Swaps con comisión (modelo x·y = k aplicando fee al input).
     //
-    // Relación con el paper:
-    // - Sección “Trading”: el estado es (x, y) y se preserva x·y = k (sin fee).
-    //   Dado Δx (input), calculamos Δy usando:
-    //     Δy = (Δx · y) / (x + Δx)
+    // Nomenclatura (paper Uniswap V1):
+    //   Δx: input
+    //   Δy: output
+    //   x , y: reservas antes del swap
+    //   α = Δx / x
+    //   ρ = fee (aquí 0.003 = 30 bps)
+    //   γ = 1 - ρ
+    //
+    // Fórmula con fee (getInputPrice_code):
+    //   Δy = floor( (α * γ / (1 + α * γ)) * y )
+    //
+    // Implementación entera equivalente:
+    //   amountOut = (amountIn * γ * y) / (x * 1 + amountIn * γ)
     // ------------------------------------------------------------------------
 
     /// @notice Intercambia ETH por tokens (entrada exacta de ETH).
@@ -195,8 +209,6 @@ contract AMM is ERC20 {
     function tokenToEthSwap(uint256 tokensSold, uint256 minEthOut) external returns (uint256 ethBought) {
         require(tokensSold > 0, "tokens = 0");
 
-        // Precio usando las reservas anteriores a actualizar:
-        //   Δy (aquí ETH) = (Δx · e) / (t + Δx)
         ethBought = _getInputPrice(tokensSold, reserveToken, reserveEth);
         require(ethBought >= minEthOut, "slippage");
 
@@ -205,25 +217,26 @@ contract AMM is ERC20 {
         reserveEth -= ethBought;
 
         exchangeToken.transferFrom(msg.sender, address(this), tokensSold);
-        payable(msg.sender).transfer(ethBought);
+        (bool success, ) = payable(msg.sender).call{value: ethBought}("");
+        require(success, "ETH transfer fallida");
     }
 
     // ------------------------------------------------------------------------
-    // Función de precio de entrada (swaps): modelo x·y = k sin fee.
+    // Función de precio de entrada (swaps) con fee.
     //
-    // En el paper, sin comisión, el output Δy viene dado por:
-    //   x·y = (x + Δx)·(y - Δy)
-    //   ⇒ Δy = (Δx · y) / (x + Δx)
+    // amountOut = (amountIn * γ * reserveOut) /
+    //             (reserveIn * 1 + amountIn * γ)
     //
-    // Aquí:
-    //   inputAmount = Δx
-    //   inputReserve = x
-    //   outputReserve = y
+    // donde γ = 1 - ρ y ρ es la comisión (0.3% = 30 bps).
     // ------------------------------------------------------------------------
-    function _getInputPrice(uint256 dx, uint256 x, uint256 y) internal pure returns (uint256 dy) {
-        require(dx > 0, "inputAmount = 0");
-        require(x > 0 && y > 0, "no hay liquidez");
-        dy = (dx * y) / (x + dx);
+    function _getInputPrice(uint256 amountIn, uint256 reserveIn, uint256 reserveOut) internal pure returns (uint256) {
+        require(amountIn > 0, "inputAmount = 0");
+        require(reserveIn > 0 && reserveOut > 0, "no hay liquidez");
+
+        uint256 gamma = BPS_DENOM - FEE_BPS;
+
+        // linea de abajo es (997 * Δx * y) / (x * 1000 + 997 * Δx)
+        return (amountIn* gamma * reserveOut) / (reserveIn * BPS_DENOM + gamma * amountIn);
     }
 
     receive() external payable {

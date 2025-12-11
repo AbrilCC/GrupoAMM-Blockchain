@@ -81,9 +81,18 @@ contract AMMTest is Test {
         (uint256 ethReserveAfter, uint256 usdReserveAfter) = amm.getReserves();
         uint256 priceAfter = (usdReserveAfter * 1e18) / ethReserveAfter;
         uint256 effectivePrice = (usdReceived * 1e18) / ethToSwap;
+        uint256 expectedOut = _amountOutWithFee(ethToSwap, ethReserveBefore, usdReserveBefore);
+        uint256 expectedOutNoFee = _amountOutNoFee(ethToSwap, ethReserveBefore, usdReserveBefore);
+        uint256 feeBps = amm.FEE_BPS();
+        uint256 feeApplied = expectedOutNoFee - expectedOut;
 
         console.log("USD recibidos: %s (en base units)", usdReceived);
         console.log("USD recibidos: %s", usdReceived / 1e18);
+        console.log("Fee aplicado: %s (en base units)", feeApplied);
+        console.log("Fee aplicado: %s", feeApplied / 1e18);
+        console.log("Fee (bps): %s", feeBps);
+        console.log("Sin fee (esperado): %s", expectedOutNoFee);
+        console.log("Con fee (esperado): %s", expectedOut);
         console.log("Precio efectivo: %s USD/ETH (en base units)", effectivePrice);
         console.log("Precio efectivo: %s USD/ETH", effectivePrice / 1e18);
         console.log("Precio despues: %s USD/ETH (en base units)", priceAfter);
@@ -91,6 +100,7 @@ contract AMMTest is Test {
 
         // Verificaciones basicas
         assertGt(usdReceived, 0, "Deberia recibir USD");
+        assertEq(usdReceived, expectedOut, "Monto USD con fee");
         assertEq(usd.balanceOf(trader), traderUsdBefore + usdReceived);
         assertLt(priceAfter, priceBefore, "Precio USD/ETH deberia bajar");
 
@@ -124,9 +134,18 @@ contract AMMTest is Test {
         (uint256 ethReserveAfter, uint256 usdReserveAfter) = amm.getReserves();
         uint256 priceAfter = (usdReserveAfter * 1e18) / ethReserveAfter;
         uint256 effectivePrice = (usdToSwap * 1e18) / ethReceived;
+        uint256 expectedOut = _amountOutWithFee(usdToSwap, usdReserveBefore, ethReserveBefore);
+        uint256 expectedOutNoFee = _amountOutNoFee(usdToSwap, usdReserveBefore, ethReserveBefore);
+        uint256 feeBps = amm.FEE_BPS();
+        uint256 feeApplied = expectedOutNoFee - expectedOut;
 
         console.log("ETH recibidos: %s (en base units)", ethReceived);
         console.log("ETH recibidos: %s mETH", ethReceived / 1e15);
+        console.log("Fee aplicado: %s (en base units)", feeApplied);
+        console.log("Fee aplicado: %s", feeApplied / 1e18);
+        console.log("Fee (bps): %s", feeBps);
+        console.log("Sin fee (esperado): %s", expectedOutNoFee);
+        console.log("Con fee (esperado): %s", expectedOut);
         console.log("Precio efectivo: %s USD/ETH (en base units)", effectivePrice);
         console.log("Precio efectivo: %s USD/ETH", effectivePrice / 1e18);
         console.log("Precio despues: %s USD/ETH (en base units)", priceAfter);
@@ -134,6 +153,7 @@ contract AMMTest is Test {
 
         // Verificaciones basicas
         assertGt(ethReceived, 0, "Deberia recibir ETH");
+        assertEq(ethReceived, expectedOut, "Monto ETH con fee");
         assertEq(trader.balance, traderEthBefore + ethReceived);
         assertGt(priceAfter, priceBefore, "Precio USD/ETH deberia subir");
 
@@ -155,5 +175,17 @@ contract AMMTest is Test {
         console.log("k (x*y): %s (en base units)", k);
         console.log("k (x*y): %s", k / 1e36);
         console.log("");
+    }
+
+    function _amountOutWithFee(uint256 amountIn, uint256 reserveIn, uint256 reserveOut) internal view returns (uint256) {
+        uint256 feeBps = amm.FEE_BPS();
+        uint256 denom = amm.BPS_DENOM();
+        uint256 amountInWithFee = amountIn * (denom - feeBps);
+        return (amountInWithFee * reserveOut) / (reserveIn * denom + amountInWithFee);
+    }
+
+    function _amountOutNoFee(uint256 amountIn, uint256 reserveIn, uint256 reserveOut) internal pure returns (uint256) {
+        // Δy = (Δx * y) / (x + Δx)
+        return (amountIn * reserveOut) / (reserveIn + amountIn);
     }
 }
