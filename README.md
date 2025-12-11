@@ -17,24 +17,13 @@ https://book.getfoundry.sh/
 
 ### Install Dependencies
 
-1. **Clone the repository with submodules:**
-   ```shell
-   git clone --recursive <repository-url>
-   ```
-   Or if already cloned:
-   ```shell
-   git submodule update --init --recursive
-   ```
-
-2. **Install npm dependencies (OpenZeppelin contracts):**
-   ```shell
-   npm install
-   ```
-
-3. **Install Foundry dependencies (if using forge install):**
-   ```shell
-   forge install OpenZeppelin/openzeppelin-contracts
-   ```
+Clona con submódulos para traer `lib/forge-std` y `lib/openzeppelin-contracts`:
+```shell
+git clone --recursive <repository-url>
+# Si ya lo clonaste:
+git submodule update --init --recursive
+```
+No se requiere `npm install` porque las librerías viven en `lib/`.
 
 ## Usage
 

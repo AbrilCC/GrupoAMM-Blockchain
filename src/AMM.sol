@@ -21,11 +21,7 @@ contract AMM is ERC20 {
     // ------------------------------------------------------------------------
     // FUNCIÓN VIEW: devolver reservas actuales (e, t).
     // ------------------------------------------------------------------------
-    function getReserves()
-        external
-        view
-        returns (uint256 ethReserve, uint256 tokenReserve)
-    {
+    function getReserves() external view returns (uint256 ethReserve, uint256 tokenReserve) {
         ethReserve = reserveEth;
         tokenReserve = reserveToken;
     }
@@ -55,11 +51,7 @@ contract AMM is ERC20 {
     //
     // Esto implementa la idea de “escalar” (e, t, l) por (1 + α).
     // ------------------------------------------------------------------------
-    function addLiquidity(uint256 maxTokens)
-        external
-        payable
-        returns (uint256 liquidityMinted, uint256 tokenAmount)
-    {
+    function addLiquidity(uint256 maxTokens) external payable returns (uint256 liquidityMinted, uint256 tokenAmount) {
         require(msg.value > 0, "se requiere ETH");
         require(maxTokens > 0, "se requieren tokens");
 
@@ -120,16 +112,13 @@ contract AMM is ERC20 {
             // Minteamos los LP tokens al usuario
             _mint(msg.sender, liquidityMinted);
 
-            require(
-                exchangeToken.transferFrom(msg.sender, address(this), tokenAmount),
-                "transferFrom fallida"
-            );
+            require(exchangeToken.transferFrom(msg.sender, address(this), tokenAmount), "transferFrom fallida");
         }
 
         return (liquidityMinted, tokenAmount);
     }
 
-      // ------------------------------------------------------------------------
+    // ------------------------------------------------------------------------
     // removeLiquidity
     //
     // Relación con el paper:
@@ -153,10 +142,7 @@ contract AMM is ERC20 {
     //   ethOut   = e · Δl / l
     //   tokenOut = t · Δl / l
     // ------------------------------------------------------------------------
-    function removeLiquidity(uint256 liquidity)
-        external
-        returns (uint256 ethOut, uint256 tokenOut)
-    {
+    function removeLiquidity(uint256 liquidity) external returns (uint256 ethOut, uint256 tokenOut) {
         require(liquidity > 0, "LP = 0");
 
         uint256 _totalSupply = totalSupply();
@@ -176,13 +162,8 @@ contract AMM is ERC20 {
         reserveToken = t - tokenOut;
 
         payable(msg.sender).transfer(ethOut);
-        require(
-            exchangeToken.transfer(msg.sender, tokenOut),
-            "transfer fallida"
-        );
+        require(exchangeToken.transfer(msg.sender, tokenOut), "transfer fallida");
     }
-
-
 
     // ------------------------------------------------------------------------
     // Swaps sin comisión (modelo x·y = k exacto).
@@ -195,11 +176,7 @@ contract AMM is ERC20 {
 
     /// @notice Intercambia ETH por tokens (entrada exacta de ETH).
     /// @param minTokensOut Protección de slippage.
-    function ethToTokenSwap(uint256 minTokensOut)
-        external
-        payable
-        returns (uint256 dy)
-    {
+    function ethToTokenSwap(uint256 minTokensOut) external payable returns (uint256 dy) {
         require(msg.value > 0, "ETH = 0");
 
         dy = _getInputPrice(msg.value, reserveEth, reserveToken);
@@ -207,7 +184,7 @@ contract AMM is ERC20 {
 
         // Nuevo estado: e' = e + Δe, t' = t - Δt.
         reserveEth += msg.value;
-        reserveToken -= dy; 
+        reserveToken -= dy;
 
         exchangeToken.transfer(msg.sender, dy);
     }
@@ -215,10 +192,7 @@ contract AMM is ERC20 {
     /// @notice Intercambia tokens por ETH (entrada exacta de tokens).
     /// @param tokensSold Cantidad de tokens que vende el usuario.
     /// @param minEthOut Protección de slippage.
-    function tokenToEthSwap(uint256 tokensSold, uint256 minEthOut)
-        external
-        returns (uint256 ethBought)
-    {
+    function tokenToEthSwap(uint256 tokensSold, uint256 minEthOut) external returns (uint256 ethBought) {
         require(tokensSold > 0, "tokens = 0");
 
         // Precio usando las reservas anteriores a actualizar:
@@ -230,10 +204,9 @@ contract AMM is ERC20 {
         reserveToken += tokensSold;
         reserveEth -= ethBought;
 
-        exchangeToken.transferFrom(msg.sender, address(this), tokensSold); 
+        exchangeToken.transferFrom(msg.sender, address(this), tokensSold);
         payable(msg.sender).transfer(ethBought);
     }
-
 
     // ------------------------------------------------------------------------
     // Función de precio de entrada (swaps): modelo x·y = k sin fee.
@@ -247,11 +220,7 @@ contract AMM is ERC20 {
     //   inputReserve = x
     //   outputReserve = y
     // ------------------------------------------------------------------------
-    function _getInputPrice(
-        uint256 dx,
-        uint256 x,
-        uint256 y
-    ) internal pure returns (uint256 dy) {
+    function _getInputPrice(uint256 dx, uint256 x, uint256 y) internal pure returns (uint256 dy) {
         require(dx > 0, "inputAmount = 0");
         require(x > 0 && y > 0, "no hay liquidez");
         dy = (dx * y) / (x + dx);
